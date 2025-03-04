@@ -113,7 +113,7 @@ Clone the repository, then compile and install.
 
 ```sh
 git clone https://github.com/ChrisTitusTech/dwm-titus.git && \
-cd dwm-titus && \
+cd dwm-patched && \
 make  && \
 sudo make install
 ```
