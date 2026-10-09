@@ -1,0 +1,292 @@
+diff --git a/README.md b/README.md
+index 6ba6aae..31076a8 100644
+--- a/README.md
++++ b/README.md
+@@ -32,6 +32,9 @@ This is my **Personal Fork** with following patches:
+   - hide vacant tags
+   - warp v2
+   - winicon
++  - taskbar (one button per window on the current tag)
++  - scratchpad (toggle a floating st)
++  - surf launcher
+ 
+   **Note**: Some patches are rewritten or modified to work together.
+ </details>
+@@ -112,7 +115,7 @@ This guide assumes your system has the latest updates before going ahead with th
+ Clone the repository, then compile and install.
+ 
+ ```sh
+-git clone https://github.com/ChrisTitusTech/dwm-titus.git && \
++git clone https://github.com/rubbermetal/dwm-patched.git && \
+ cd dwm-patched && \
+ make  && \
+ sudo make install
+@@ -123,5 +126,16 @@ sudo make install
+ - If you do not use a login manager then you already know what you are doing. Add `exec dwm` at the end of your `~/.xinitrc` file.
+ 
+ > [!TIP]
+-> - By default new terminals are opened by using the keyboard shortcut of <kbd>SUPER</kbd> + <kbd>X</kbd> while rofi is started using <kbd>SUPER</kbd>+<kbd>R</kbd>
++> - <kbd>Super</kbd>+<kbd>X</kbd> opens the terminal (`warp-terminal`). <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd> opens suckless `st`. <kbd>Super</kbd>+<kbd>R</kbd> opens rofi.
++> - <kbd>Super</kbd>+<kbd>`</kbd> toggles the `st` scratchpad. <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> opens surf on the browser tag.
++> - The bar is a taskbar: every window on the current tag gets a button. Left click focuses it, middle click makes it the master, right click closes it.
+ > - Check `config.h` for the keybindings, and change them according to your preference.
++
++## Companions
++
++`config.h` swallows windows whose class is `St` and launches surf by name. The matching trees are pinned to the dwm 6.5 generation:
++
++- [st-patched](https://github.com/rubbermetal/st-patched) is suckless st 0.9.2. st 0.9.1 shipped the same day as dwm 6.5 (2024-03-19). 0.9.2 is that release plus the wide-glyph cursor fix from 2024-04-05. Its window class is `St`.
++- [surf](https://github.com/rubbermetal/surf) is suckless surf 2.1 (2021-05-08), the current surf release. It is an X11 browser, class `Surf`.
++
++[rubbermetal/st](https://github.com/rubbermetal/st) is an older Luke Smith fork and is not the terminal this dwm was set up for.
+diff --git a/config.def.h b/config.def.h
+index c096112..73fc8a8 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -50,6 +50,8 @@ static const Rule rules[] = {
+ 	{ "Gimp",    NULL,     NULL,           0,         1,          0,           0,        -1 },
+ 	{ "Firefox", NULL,     NULL,           1 << 8,    0,          0,          -1,        -1 },
+ 	{ "St",      NULL,     NULL,           0,         0,          1,           0,        -1 },
++	{ "St",      "scratchpad", NULL,       0,         1,          1,           1,        -1 },
++	{ "Surf",    NULL,     NULL,           0,         0,          0,           1,        -1 },
+ 	{ NULL,      NULL,     "Event Tester", 0,         0,          0,           1,        -1 }, /* xev */
+ };
+ 
+@@ -83,11 +85,18 @@ static const Layout layouts[] = {
+ static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn() */
+ static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, "-fn", dmenufont, "-nb", col_gray1, "-nf", col_gray3, "-sb", col_cyan, "-sf", col_gray4, NULL };
+ static const char *termcmd[]  = { "st", NULL };
++static const char *stcmd[]    = { "st", NULL };
++static const char scratchpadname[] = "scratchpad";
++static const char *scratchcmd[] = { "st", "-n", "scratchpad", "-t", "scratchpad", "-g", "120x34", NULL };
++static const char *surfcmd[]  = { "surf", NULL };
+ 
+ static Key keys[] = {
+ 	/* modifier                     key        function        argument */
+ 	{ MODKEY,                       XK_p,      spawn,          {.v = dmenucmd } },
+ 	{ MODKEY|ShiftMask,             XK_Return, spawn,          {.v = termcmd } },
++	{ MODKEY|ShiftMask,             XK_x,      spawn,          {.v = stcmd } },
++	{ MODKEY,                       XK_grave,  togglescratch,  {.v = scratchcmd } },
++	{ MODKEY|ShiftMask,             XK_s,      spawn,          {.v = surfcmd } },
+ 	{ MODKEY,                       XK_b,      togglebar,      {0} },
+ 	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
+ 	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 } },
+@@ -135,6 +144,7 @@ static Button buttons[] = {
+ 	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
+ 	{ ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
+ 	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
++	{ ClkWinTitle,          0,              Button3,        killclient,     {0} },
+ 	{ ClkStatusText,        0,              Button1,        sigstatusbar,   {.i = 1} },
+ 	{ ClkStatusText,        0,              Button2,        sigstatusbar,   {.i = 2} },
+ 	{ ClkStatusText,        0,              Button3,        sigstatusbar,   {.i = 3} },
+diff --git a/config.h b/config.h
+index 7258212..220ad08 100644
+--- a/config.h
++++ b/config.h
+@@ -55,6 +55,8 @@ static const int lcaselbl = 0;          /* 1 means make tag label lowercase */
+ static const Rule rules[] = {
+     /* class                instance  title           tags mask  isfloating  isterminal  noswallow  monitor */
+     { "St",                 NULL,     NULL,           0,         0,          1,          0,         0 },
++    { "St",                 "scratchpad", NULL,     0,         1,          1,          1,        -1 },
++    { "Surf",               NULL,     NULL,           1 << 1,    0,          0,          1,        -1 },
+     { "kitty",              NULL,     NULL,           0,         0,          1,          0,         0 },
+     { "alacritty",          NULL,     NULL,           0,         0,          1,          0,         0 },
+     { "warp-terminal",      NULL,     NULL,           0,         0,          1,          0,         0 },
+@@ -92,12 +94,19 @@ static const Layout layouts[] = {
+ /* commands */
+ static const char *launchercmd[] = { "rofi", "-show", "drun", NULL };
+ static const char *termcmd[]     = { "warp-terminal", NULL };
++static const char *stcmd[]       = { "st", NULL };
++static const char scratchpadname[] = "scratchpad";
++static const char *scratchcmd[]   = { "st", "-n", "scratchpad", "-t", "scratchpad", "-g", "120x34", NULL };
++static const char *surfcmd[]      = { "surf", NULL };
+ 
+ static Key keys[] = {
+     /* modifier                     key                        function        argument */
+     { MODKEY,                       XK_r,                      spawn,          {.v = launchercmd} },
+     { MODKEY|ControlMask,           XK_r,                      spawn,          SHCMD ("protonrestart")},
+     { MODKEY,                       XK_x,                      spawn,          {.v = termcmd } },
++    { MODKEY|ShiftMask,             XK_x,                      spawn,          {.v = stcmd } },
++    { MODKEY,                       XK_grave,                  togglescratch,  {.v = scratchcmd } },
++    { MODKEY|ShiftMask,             XK_s,                      spawn,          {.v = surfcmd } },
+     { MODKEY,                       XK_b,                      spawn,          SHCMD ("xdg-open https://")},
+     { MODKEY,                       XK_p,                      spawn,          SHCMD ("flameshot full -p /media/drive/Screenshots/")},
+     { MODKEY|ShiftMask,             XK_p,                      spawn,          SHCMD ("flameshot gui -p /media/drive/Screenshots/")},
+@@ -151,6 +160,8 @@ static Key keys[] = {
+ /* click can be ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle, ClkClientWin, or ClkRootWin */
+ static Button buttons[] = {
+     /* click                event mask      button          function        argument */
++    { ClkWinTitle,          0,              Button2,        zoom,           {0} },
++    { ClkWinTitle,          0,              Button3,        killclient,     {0} },
+     { ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
+     { ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
+     { ClkClientWin,         MODKEY,         Button1,        moveorplace,    {.i = 2} },
+diff --git a/dwm.c b/dwm.c
+index 8f740a0..5dd7945 100644
+--- a/dwm.c
++++ b/dwm.c
+@@ -68,6 +68,7 @@
+ #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
+ #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
+ #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
++#define SCRATCHTAG              (1 << LENGTH(tags))
+ #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
+ 
+ #define SYSTEM_TRAY_REQUEST_DOCK    0
+@@ -122,6 +123,9 @@ struct Client {
+ 	int bw, oldbw;
+ 	unsigned int tags;
+ 	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen, isterminal, noswallow;
++	int isscratchpad;
++	int tabx;
++	unsigned int tabw;
+ 	int beingmoved;
+ 	int fakefullscreen;
+ 	pid_t pid;
+@@ -279,6 +283,7 @@ static void tile(Monitor *m);
+ static void togglebar(const Arg *arg);
+ static void togglefakefullscreen(const Arg *arg);
+ static void togglefloating(const Arg *arg);
++static void togglescratch(const Arg *arg);
+ static void toggletag(const Arg *arg);
+ static void toggleview(const Arg *arg);
+ static void unfocus(Client *c, int setfocus);
+@@ -446,6 +451,8 @@ applyrules(Client *c)
+ 				c->mon = m;
+ 		}
+ 	}
++	if (!strcmp(instance, scratchpadname))
++		c->isscratchpad = 1;
+ 	if (ch.res_class)
+ 		XFree(ch.res_class);
+ 	if (ch.res_name)
+@@ -613,9 +620,7 @@ buttonpress(XEvent *e)
+ 		if (i < LENGTH(tags)) {
+ 			click = ClkTagBar;
+ 			arg.ui = 1 << i;
+-		} else if (ev->x < x + TEXTW(selmon->ltsymbol))
+-			click = ClkLtSymbol;
+-		else if (ev->x > selmon->ww - statusw - getsystraywidth()) {
++		} else if (ev->x > selmon->ww - statusw - getsystraywidth()) {
+ 			x = selmon->ww - statusw - getsystraywidth();
+ 			click = ClkStatusText;
+ 			statussig = 0;
+@@ -631,8 +636,16 @@ buttonpress(XEvent *e)
+ 					statussig = ch;
+ 				}
+ 			}
+-		} else
++		} else {
+ 			click = ClkWinTitle;
++			for (c = selmon->clients; c; c = c->next) {
++				if (c->tabw && ev->x >= c->tabx && ev->x < c->tabx + (int)c->tabw) {
++					focus(c);
++					restack(selmon);
++					break;
++				}
++			}
++		}
+ 	} else if ((c = wintoclient(ev->window))) {
+ 		focus(c);
+ 		restack(selmon);
+@@ -1019,20 +1032,42 @@ drawbar(Monitor *m)
+ 		x += w;
+ 	}
+ 
++	for (c = m->clients; c; c = c->next)
++		c->tabw = 0;
++
+ 	if ((w = m->ww - tw - stw - x) > bh) {
+-		if (m->sel) {
+-			drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]);
++		int n = 0, ti = 0, cw, pad, slot, start = x;
++
++		for (c = m->clients; c; c = c->next)
++			if (ISVISIBLE(c))
++				n++;
++
++		drw_setscheme(drw, scheme[SchemeNorm]);
++		drw_rect(drw, x, 0, w, bh, 1, 1);
++		for (c = m->clients; c && n; c = c->next) {
++			if (!ISVISIBLE(c))
++				continue;
++			slot = w / n + (ti < (w % n) ? 1 : 0);
++			cw = slot > 2 ? slot - 1 : slot; /* 1px gap between task buttons */
++			c->tabx = x;
++			c->tabw = cw;
++			pad = lrpad / 2;
++			drw_setscheme(drw, scheme[c == m->sel ? SchemeSel : SchemeNorm]);
+ 			#if SHOWWINICON
+-			drw_text(drw, x, 0, w, bh, lrpad / 2 + (m->sel->icon ? m->sel->icw + ICONSPACING : 0), m->sel->name, 0);
+-			if (m->sel->icon) drw_pic(drw, x + lrpad / 2, (bh - m->sel->ich) / 2, m->sel->icw, m->sel->ich, m->sel->icon);
++			if (c->icon)
++				pad += c->icw + ICONSPACING;
++			drw_text(drw, x, 0, cw, bh, pad, c->name, c->isurgent && c != m->sel);
++			if (c->icon)
++				drw_pic(drw, x + lrpad / 2, (bh - c->ich) / 2, c->icw, c->ich, c->icon);
+ 			#else
+-			drw_text(drw, x, 0, w, bh, lrpad / 2, m->sel->name, 0);
++			drw_text(drw, x, 0, cw, bh, pad, c->name, c->isurgent && c != m->sel);
+ 			#endif
+-			if (m->sel->isfloating)
+-				drw_rect(drw, x + boxs, boxs, boxw, boxw, m->sel->isfixed, 0);
+-		} else {
+-			drw_setscheme(drw, scheme[SchemeNorm]);
+-			drw_rect(drw, x, 0, w, bh, 1, 1);
++			if (c->isfloating)
++				drw_rect(drw, x + boxs, boxs, boxw, boxw, c->isfixed, 0);
++			x += slot;
++			ti++;
++			if (x >= start + w)
++				break;
+ 		}
+ 	}
+ 
+@@ -1544,7 +1579,7 @@ manage(Window w, XWindowAttributes *wa)
+ 	c->mon->sel = c;
+ 	arrange(c->mon);
+ 	XMapWindow(dpy, c->win);
+-	if (term)
++	if (term && !term->isscratchpad)
+ 		swallow(term, c);
+ 	focus(NULL);
+ 	if (ISVISIBLE(c))
+@@ -2873,6 +2908,38 @@ togglefloating(const Arg *arg)
+ 	warp(NULL);
+ }
+ 
++void
++togglescratch(const Arg *arg)
++{
++	Client *c = NULL, *t;
++	Monitor *m;
++
++	for (m = mons; m && !c; m = m->next)
++		for (t = m->clients; t; t = t->next)
++			if (t->isscratchpad) {
++				c = t;
++				break;
++			}
++	if (!c) {
++		spawn(arg);
++		return;
++	}
++	if (ISVISIBLE(c) && c->mon == selmon) {
++		c->tags = SCRATCHTAG;
++		focus(NULL);
++		arrange(c->mon);
++		warp(NULL);
++		return;
++	}
++	if (c->mon != selmon)
++		sendmon(c, selmon);
++	c->tags = selmon->tagset[selmon->seltags];
++	focus(c);
++	arrange(c->mon);
++	restack(selmon);
++	warp(c);
++}
++
+ void
+ toggletag(const Arg *arg)
+ {

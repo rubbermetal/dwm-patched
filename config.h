@@ -55,6 +55,8 @@ static const int lcaselbl = 0;          /* 1 means make tag label lowercase */
 static const Rule rules[] = {
     /* class                instance  title           tags mask  isfloating  isterminal  noswallow  monitor */
     { "St",                 NULL,     NULL,           0,         0,          1,          0,         0 },
+    { "St",                 "scratchpad", NULL,     0,         1,          1,          1,        -1 },
+    { "Surf",               NULL,     NULL,           1 << 1,    0,          0,          1,        -1 },
     { "kitty",              NULL,     NULL,           0,         0,          1,          0,         0 },
     { "alacritty",          NULL,     NULL,           0,         0,          1,          0,         0 },
     { "warp-terminal",      NULL,     NULL,           0,         0,          1,          0,         0 },
@@ -92,12 +94,19 @@ static const Layout layouts[] = {
 /* commands */
 static const char *launchercmd[] = { "rofi", "-show", "drun", NULL };
 static const char *termcmd[]     = { "warp-terminal", NULL };
+static const char *stcmd[]       = { "st", NULL };
+static const char scratchpadname[] = "scratchpad";
+static const char *scratchcmd[]   = { "st", "-n", "scratchpad", "-t", "scratchpad", "-g", "120x34", NULL };
+static const char *surfcmd[]      = { "surf", NULL };
 
 static Key keys[] = {
     /* modifier                     key                        function        argument */
     { MODKEY,                       XK_r,                      spawn,          {.v = launchercmd} },
     { MODKEY|ControlMask,           XK_r,                      spawn,          SHCMD ("protonrestart")},
     { MODKEY,                       XK_x,                      spawn,          {.v = termcmd } },
+    { MODKEY|ShiftMask,             XK_x,                      spawn,          {.v = stcmd } },
+    { MODKEY,                       XK_grave,                  togglescratch,  {.v = scratchcmd } },
+    { MODKEY|ShiftMask,             XK_s,                      spawn,          {.v = surfcmd } },
     { MODKEY,                       XK_b,                      spawn,          SHCMD ("xdg-open https://")},
     { MODKEY,                       XK_p,                      spawn,          SHCMD ("flameshot full -p /media/drive/Screenshots/")},
     { MODKEY|ShiftMask,             XK_p,                      spawn,          SHCMD ("flameshot gui -p /media/drive/Screenshots/")},
@@ -151,6 +160,8 @@ static Key keys[] = {
 /* click can be ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle, ClkClientWin, or ClkRootWin */
 static Button buttons[] = {
     /* click                event mask      button          function        argument */
+    { ClkWinTitle,          0,              Button2,        zoom,           {0} },
+    { ClkWinTitle,          0,              Button3,        killclient,     {0} },
     { ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
     { ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
     { ClkClientWin,         MODKEY,         Button1,        moveorplace,    {.i = 2} },

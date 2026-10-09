@@ -68,6 +68,7 @@
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
+#define SCRATCHTAG              (1 << LENGTH(tags))
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
 
 #define SYSTEM_TRAY_REQUEST_DOCK    0
@@ -122,6 +123,9 @@ struct Client {
 	int bw, oldbw;
 	unsigned int tags;
 	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen, isterminal, noswallow;
+	int isscratchpad;
+	int tabx;
+	unsigned int tabw;
 	int beingmoved;
 	int fakefullscreen;
 	pid_t pid;
@@ -279,6 +283,7 @@ static void tile(Monitor *m);
 static void togglebar(const Arg *arg);
 static void togglefakefullscreen(const Arg *arg);
 static void togglefloating(const Arg *arg);
+static void togglescratch(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unfocus(Client *c, int setfocus);
@@ -446,6 +451,8 @@ applyrules(Client *c)
 				c->mon = m;
 		}
 	}
+	if (!strcmp(instance, scratchpadname))
+		c->isscratchpad = 1;
 	if (ch.res_class)
 		XFree(ch.res_class);
 	if (ch.res_name)
@@ -613,9 +620,7 @@ buttonpress(XEvent *e)
 		if (i < LENGTH(tags)) {
 			click = ClkTagBar;
 			arg.ui = 1 << i;
-		} else if (ev->x < x + TEXTW(selmon->ltsymbol))
-			click = ClkLtSymbol;
-		else if (ev->x > selmon->ww - statusw - getsystraywidth()) {
+		} else if (ev->x > selmon->ww - statusw - getsystraywidth()) {
 			x = selmon->ww - statusw - getsystraywidth();
 			click = ClkStatusText;
 			statussig = 0;
@@ -631,8 +636,16 @@ buttonpress(XEvent *e)
 					statussig = ch;
 				}
 			}
-		} else
+		} else {
 			click = ClkWinTitle;
+			for (c = selmon->clients; c; c = c->next) {
+				if (c->tabw && ev->x >= c->tabx && ev->x < c->tabx + (int)c->tabw) {
+					focus(c);
+					restack(selmon);
+					break;
+				}
+			}
+		}
 	} else if ((c = wintoclient(ev->window))) {
 		focus(c);
 		restack(selmon);
@@ -1019,20 +1032,42 @@ drawbar(Monitor *m)
 		x += w;
 	}
 
+	for (c = m->clients; c; c = c->next)
+		c->tabw = 0;
+
 	if ((w = m->ww - tw - stw - x) > bh) {
-		if (m->sel) {
-			drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]);
+		int n = 0, ti = 0, cw, pad, slot, start = x;
+
+		for (c = m->clients; c; c = c->next)
+			if (ISVISIBLE(c))
+				n++;
+
+		drw_setscheme(drw, scheme[SchemeNorm]);
+		drw_rect(drw, x, 0, w, bh, 1, 1);
+		for (c = m->clients; c && n; c = c->next) {
+			if (!ISVISIBLE(c))
+				continue;
+			slot = w / n + (ti < (w % n) ? 1 : 0);
+			cw = slot > 2 ? slot - 1 : slot; /* 1px gap between task buttons */
+			c->tabx = x;
+			c->tabw = cw;
+			pad = lrpad / 2;
+			drw_setscheme(drw, scheme[c == m->sel ? SchemeSel : SchemeNorm]);
 			#if SHOWWINICON
-			drw_text(drw, x, 0, w, bh, lrpad / 2 + (m->sel->icon ? m->sel->icw + ICONSPACING : 0), m->sel->name, 0);
-			if (m->sel->icon) drw_pic(drw, x + lrpad / 2, (bh - m->sel->ich) / 2, m->sel->icw, m->sel->ich, m->sel->icon);
+			if (c->icon)
+				pad += c->icw + ICONSPACING;
+			drw_text(drw, x, 0, cw, bh, pad, c->name, c->isurgent && c != m->sel);
+			if (c->icon)
+				drw_pic(drw, x + lrpad / 2, (bh - c->ich) / 2, c->icw, c->ich, c->icon);
 			#else
-			drw_text(drw, x, 0, w, bh, lrpad / 2, m->sel->name, 0);
+			drw_text(drw, x, 0, cw, bh, pad, c->name, c->isurgent && c != m->sel);
 			#endif
-			if (m->sel->isfloating)
-				drw_rect(drw, x + boxs, boxs, boxw, boxw, m->sel->isfixed, 0);
-		} else {
-			drw_setscheme(drw, scheme[SchemeNorm]);
-			drw_rect(drw, x, 0, w, bh, 1, 1);
+			if (c->isfloating)
+				drw_rect(drw, x + boxs, boxs, boxw, boxw, c->isfixed, 0);
+			x += slot;
+			ti++;
+			if (x >= start + w)
+				break;
 		}
 	}
 
@@ -1544,7 +1579,7 @@ manage(Window w, XWindowAttributes *wa)
 	c->mon->sel = c;
 	arrange(c->mon);
 	XMapWindow(dpy, c->win);
-	if (term)
+	if (term && !term->isscratchpad)
 		swallow(term, c);
 	focus(NULL);
 	if (ISVISIBLE(c))
@@ -2871,6 +2906,38 @@ togglefloating(const Arg *arg)
 			selmon->sel->w, selmon->sel->h, 0);
 	arrange(selmon);
 	warp(NULL);
+}
+
+void
+togglescratch(const Arg *arg)
+{
+	Client *c = NULL, *t;
+	Monitor *m;
+
+	for (m = mons; m && !c; m = m->next)
+		for (t = m->clients; t; t = t->next)
+			if (t->isscratchpad) {
+				c = t;
+				break;
+			}
+	if (!c) {
+		spawn(arg);
+		return;
+	}
+	if (ISVISIBLE(c) && c->mon == selmon) {
+		c->tags = SCRATCHTAG;
+		focus(NULL);
+		arrange(c->mon);
+		warp(NULL);
+		return;
+	}
+	if (c->mon != selmon)
+		sendmon(c, selmon);
+	c->tags = selmon->tagset[selmon->seltags];
+	focus(c);
+	arrange(c->mon);
+	restack(selmon);
+	warp(c);
 }
 
 void

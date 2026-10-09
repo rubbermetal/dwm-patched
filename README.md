@@ -32,6 +32,9 @@ This is my **Personal Fork** with following patches:
   - hide vacant tags
   - warp v2
   - winicon
+  - taskbar (one button per window on the current tag)
+  - scratchpad (toggle a floating st)
+  - surf launcher
 
   **Note**: Some patches are rewritten or modified to work together.
 </details>
@@ -112,7 +115,7 @@ This guide assumes your system has the latest updates before going ahead with th
 Clone the repository, then compile and install.
 
 ```sh
-git clone https://github.com/ChrisTitusTech/dwm-titus.git && \
+git clone https://github.com/rubbermetal/dwm-patched.git && \
 cd dwm-patched && \
 make  && \
 sudo make install
@@ -123,5 +126,16 @@ sudo make install
 - If you do not use a login manager then you already know what you are doing. Add `exec dwm` at the end of your `~/.xinitrc` file.
 
 > [!TIP]
-> - By default new terminals are opened by using the keyboard shortcut of <kbd>SUPER</kbd> + <kbd>X</kbd> while rofi is started using <kbd>SUPER</kbd>+<kbd>R</kbd>
+> - <kbd>Super</kbd>+<kbd>X</kbd> opens the terminal (`warp-terminal`). <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd> opens suckless `st`. <kbd>Super</kbd>+<kbd>R</kbd> opens rofi.
+> - <kbd>Super</kbd>+<kbd>`</kbd> toggles the `st` scratchpad. <kbd>Super</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> opens surf on the browser tag.
+> - The bar is a taskbar: every window on the current tag gets a button. Left click focuses it, middle click makes it the master, right click closes it.
 > - Check `config.h` for the keybindings, and change them according to your preference.
+
+## Companions
+
+`config.h` swallows windows whose class is `St` and launches surf by name. The matching trees are pinned to the dwm 6.5 generation:
+
+- [st-patched](https://github.com/rubbermetal/st-patched) is suckless st 0.9.2. st 0.9.1 shipped the same day as dwm 6.5 (2024-03-19). 0.9.2 is that release plus the wide-glyph cursor fix from 2024-04-05. Its window class is `St`.
+- [surf](https://github.com/rubbermetal/surf) is suckless surf 2.1 (2021-05-08), the current surf release. It is an X11 browser, class `Surf`.
+
+[rubbermetal/st](https://github.com/rubbermetal/st) is an older Luke Smith fork and is not the terminal this dwm was set up for.
