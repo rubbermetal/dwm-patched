@@ -16,7 +16,7 @@ static const int topbar                       = 1;   /* 0 means bottom bar */
 #define ICONSIZE                              17     /* icon size */
 #define ICONSPACING                           5      /* space between icon and title */
 #define SHOWWINICON                           1      /* 0 means no winicon */
-static const char *fonts[]                    = { "MesloLGS Nerd Font Mono:size=16", "NotoColorEmoji:pixelsize=16:antialias=true:autohint=true" };
+static const char *fonts[]                    = { "CaskaydiaCove Nerd Font Mono:size=12" };
 static const char normbordercolor[]           = "#3B4252";
 static const char normbgcolor[]               = "#2E3440";
 static const char normfgcolor[]               = "#D8DEE9";
@@ -92,11 +92,11 @@ static const Layout layouts[] = {
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 #define STATUSBAR "dwmblocks"
 /* commands */
-static const char *launchercmd[] = { "rofi", "-show", "drun", NULL };
-static const char *termcmd[]     = { "warp-terminal", NULL };
+static const char *launchercmd[] = { "dmenu_run", NULL };
+static const char *termcmd[]     = { "st", NULL };
 static const char *stcmd[]       = { "st", NULL };
 static const char scratchpadname[] = "scratchpad";
-static const char *scratchcmd[]   = { "st", "-n", "scratchpad", "-t", "scratchpad", "-g", "120x34", NULL };
+static const char *scratchcmd[]   = { "st", "-n", "scratchpad", "-t", "scratchpad", "-g", "96x28", NULL };
 static const char *surfcmd[]      = { "surf", NULL };
 
 static Key keys[] = {
