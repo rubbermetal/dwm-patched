@@ -20,6 +20,57 @@
 
 	#define NET_OPERSTATE "/sys/class/net/%s/operstate"
 
+	static int
+	iwd_field(const char *interface, const char *label, char *out, size_t outlen)
+	{
+		char cmd[128];
+		FILE *fp;
+		char line[256];
+		size_t llen;
+
+		if (esnprintf(cmd, sizeof(cmd),
+		              "iwctl station %s show 2>/dev/null", interface) < 0)
+			return 0;
+		if (!(fp = popen(cmd, "r")))
+			return 0;
+
+		llen = strlen(label);
+		out[0] = '\0';
+		while (fgets(line, sizeof(line), fp)) {
+			char *p;
+			size_t n;
+
+			if (!(p = strstr(line, label)))
+				continue;
+			p += llen;
+			while (*p == ' ' || *p == '\t')
+				p++;
+			n = strcspn(p, "\r\n");
+			while (n > 0 && p[n - 1] == ' ')
+				n--;
+			if (n >= outlen)
+				n = outlen - 1;
+			memcpy(out, p, n);
+			out[n] = '\0';
+			break;
+		}
+		pclose(fp);
+		return out[0] != '\0';
+	}
+
+	static const char *
+	iwd_perc(const char *interface)
+	{
+		char rssi[32];
+		int dbm;
+
+		if (!iwd_field(interface, "RSSI", rssi, sizeof(rssi)))
+			return NULL;
+		if (sscanf(rssi, "%d", &dbm) != 1)
+			return NULL;
+		return bprintf("%d", RSSI_TO_PERC(dbm));
+	}
+
 	const char *
 	wifi_perc(const char *interface)
 	{
@@ -41,10 +92,8 @@
 		if (!p || strcmp(status, "up\n") != 0)
 			return NULL;
 
-		if (!(fp = fopen("/proc/net/wireless", "r"))) {
-			warn("fopen '/proc/net/wireless':");
-			return NULL;
-		}
+		if (!(fp = fopen("/proc/net/wireless", "r")))
+			return iwd_perc(interface);
 
 		for (i = 0; i < 3; i++)
 			if (!(p = fgets(buf, sizeof(buf) - 1, fp)))
@@ -52,10 +101,10 @@
 
 		fclose(fp);
 		if (i < 2 || !p)
-			return NULL;
+			return iwd_perc(interface);
 
 		if (!(datastart = strstr(buf, interface)))
-			return NULL;
+			return iwd_perc(interface);
 
 		datastart = (datastart+(strlen(interface)+1));
 		sscanf(datastart + 1, " %*d   %d  %*d  %*d\t\t  %*d\t   "
@@ -78,21 +127,18 @@
 		              interface) < 0)
 			return NULL;
 
-		if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-			warn("socket 'AF_INET':");
-			return NULL;
-		}
+		if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+			return iwd_field(interface, "Connected network", id, sizeof(id)) ? id : NULL;
 		wreq.u.essid.pointer = id;
-		if (ioctl(sockfd,SIOCGIWESSID, &wreq) < 0) {
-			warn("ioctl 'SIOCGIWESSID':");
+		if (ioctl(sockfd, SIOCGIWESSID, &wreq) < 0) {
 			close(sockfd);
-			return NULL;
+			return iwd_field(interface, "Connected network", id, sizeof(id)) ? id : NULL;
 		}
 
 		close(sockfd);
 
 		if (!strcmp(id, ""))
-			return NULL;
+			return iwd_field(interface, "Connected network", id, sizeof(id)) ? id : NULL;
 
 		return id;
 	}

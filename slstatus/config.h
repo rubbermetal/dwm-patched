@@ -67,6 +67,8 @@ static const struct arg args[] = {
 	/* function format          argument */
 	{ cpu_perc,             "  %s%%",      NULL },
 	{ ram_used,             "  %s",         NULL },	
-	{ ram_total,             "/%s",         NULL },	
+	{ ram_total,             "/%s",         NULL },
+	{ wifi_essid,           "  %s",        "wlan0" },
+	{ wifi_perc,            " %s%%",        "wlan0" },
 	{ datetime, "  %s",           "%m-%d-%Y %I:%M:%S %p " },
 };
