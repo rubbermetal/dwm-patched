@@ -217,6 +217,7 @@ static void enternotify(XEvent *e);
 static void expose(XEvent *e);
 static void focus(Client *c);
 static void focusin(XEvent *e);
+static void focusdir(const Arg *arg);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static Atom getatomprop(Client *c, Atom prop);
@@ -1162,6 +1163,41 @@ focusmon(const Arg *arg)
 	selmon = m;
 	focus(NULL);
 	warp(selmon->sel);
+}
+
+void
+focusdir(const Arg *arg)
+{
+	Client *c, *target = NULL;
+	int cx, cy, nx, ny, dist, mindist = INT_MAX;
+
+	if (!selmon->sel || (selmon->sel->isfullscreen && !selmon->sel->fakefullscreen))
+		return;
+	cx = selmon->sel->x + selmon->sel->w / 2;
+	cy = selmon->sel->y + selmon->sel->h / 2;
+	for (c = selmon->clients; c; c = c->next) {
+		if (c == selmon->sel || !ISVISIBLE(c))
+			continue;
+		nx = c->x + c->w / 2;
+		ny = c->y + c->h / 2;
+		switch (arg->i) {
+		case 0: if (nx >= cx) continue; break; /* left */
+		case 1: if (nx <= cx) continue; break; /* right */
+		case 2: if (ny >= cy) continue; break; /* up */
+		case 3: if (ny <= cy) continue; break; /* down */
+		default: return;
+		}
+		dist = abs(nx - cx) + abs(ny - cy);
+		if (dist && dist < mindist) {
+			mindist = dist;
+			target = c;
+		}
+	}
+	if (!target)
+		return;
+	focus(target);
+	restack(selmon);
+	warp(target);
 }
 
 void
